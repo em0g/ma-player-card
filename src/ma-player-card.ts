@@ -35,6 +35,20 @@ export class MaPlayerCard extends LitElement {
   private _entryRequested = false;
   private _accentFor = "";
   private _toastTimer?: number;
+  @state() private _top = 0;
+  private _measureFrame?: number;
+
+  /**
+   * Fill the screen from wherever the card starts. HA's --header-height can't be
+   * trusted because kiosk-mode hides the header without resetting it.
+   */
+  private _measure = () => {
+    cancelAnimationFrame(this._measureFrame!);
+    this._measureFrame = requestAnimationFrame(() => {
+      const top = Math.max(0, Math.round(this.getBoundingClientRect().top + window.scrollY));
+      if (top !== this._top) this._top = top;
+    });
+  };
 
   static getStubConfig() {
     return { type: "custom:ma-player-card" };
@@ -129,7 +143,7 @@ export class MaPlayerCard extends LitElement {
     const groupIds = this._groupIds;
     const bg = hasMedia(leader) ? entityImage(this.hass, leader) : undefined;
     const activeName = this.hass.states[activeId]?.attributes.friendly_name ?? activeId;
-    const height = this._config.height ?? "calc(100dvh - var(--header-height, 0px))";
+    const height = this._config.height ?? `calc(100dvh - ${this._top}px)`;
 
     return html`
       <div
@@ -201,12 +215,18 @@ export class MaPlayerCard extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    window.addEventListener("resize", this._measure);
+    this._measure();
+    // Header visibility (kiosk-mode) can settle after first paint.
+    setTimeout(this._measure, 500);
+    setTimeout(this._measure, 2000);
     this.addEventListener("ma-error", this._onError as EventListener);
     this.addEventListener("ma-toast", this._onToast as EventListener);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.removeEventListener("resize", this._measure);
     this.removeEventListener("ma-error", this._onError as EventListener);
     this.removeEventListener("ma-toast", this._onToast as EventListener);
   }
