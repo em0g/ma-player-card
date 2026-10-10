@@ -10,8 +10,7 @@ HA_WWW="${HA_WWW:-/config/www/ma-player-card}"
 [ -f dist/ma-player-card.js ] || { echo "dist/ma-player-card.js missing – run npm run build" >&2; exit 1; }
 
 ssh "$HA_SSH" "mkdir -p '$HA_WWW'"
-scp -q dist/ma-player-card.js "$HA_SSH:$HA_WWW/ma-player-card.js"
+# Plain ssh + cat: the SSH add-on has SFTP (needed by modern scp) disabled by default.
+ssh "$HA_SSH" "cat > '$HA_WWW/ma-player-card.js'" < dist/ma-player-card.js
 
-HASH=$(sha256sum dist/ma-player-card.js | cut -c1-10)
-echo "Deployed. Lovelace resource (JavaScript module):"
-echo "  /local/ma-player-card/ma-player-card.js?v=$HASH"
+echo "Copied to $HA_SSH:$HA_WWW"

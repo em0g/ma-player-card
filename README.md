@@ -40,6 +40,7 @@ views:
 | `hide_unavailable` | `true` | Hide unavailable players in the speaker list |
 | `config_entry_id` | auto | Music Assistant config entry; set it if the dashboard user isn't an admin |
 | `language` | `sv` | `sv` or `en` |
+| `footer_space` | `0` | Pixels to keep free at the bottom (e.g. for navbar-card) |
 | `height` | `calc(100dvh - var(--header-height, 0px))` | Card height |
 
 The selected player is remembered per device (localStorage).

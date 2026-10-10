@@ -132,7 +132,10 @@ export class MaPlayerCard extends LitElement {
     const height = this._config.height ?? "calc(100dvh - var(--header-height, 0px))";
 
     return html`
-      <div class="root" style="--ma-accent:${this._accent};height:${height}">
+      <div
+        class="root"
+        style="--ma-accent:${this._accent};--ma-footer-space:${this._config.footer_space ?? 0}px;height:${height}"
+      >
         <div class="bg">
           ${bg ? html`<div class="bg-img" style="background-image:url('${bg}')"></div>` : nothing}
           <div class="bg-tint"></div>
@@ -290,6 +293,7 @@ export class MaPlayerCard extends LitElement {
     .main {
       flex: 1;
       min-height: 0;
+      margin-bottom: var(--ma-footer-space, 0px);
     }
     button {
       font: inherit;
@@ -366,7 +370,7 @@ export class MaPlayerCard extends LitElement {
       position: absolute;
       top: 0;
       right: 0;
-      bottom: 0;
+      bottom: var(--ma-footer-space, 0px);
       z-index: 6;
       width: min(560px, 46%);
       background: rgba(22, 22, 28, 0.96);
@@ -382,7 +386,7 @@ export class MaPlayerCard extends LitElement {
     .toast {
       position: absolute;
       left: 50%;
-      bottom: 28px;
+      bottom: calc(28px + var(--ma-footer-space, 0px));
       transform: translateX(-50%);
       z-index: 30;
       max-width: 80%;

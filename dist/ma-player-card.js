@@ -576,7 +576,7 @@ function Ie(e, t) {
   return !i || i.attributes.mass_player_type === "group" ? [] : ut(i).filter((s) => s !== t);
 }
 function O(e) {
-  return e ? (e.state === "playing" || e.state === "paused") && !!(e.attributes.media_title || e.attributes.media_content_id) : !1;
+  return e ? !["off", "unavailable", "unknown", "standby"].includes(e.state) && !!(e.attributes.media_title || e.attributes.media_content_id) : !1;
 }
 function Pe(e, t, i) {
   if (i && t.states[i]) return i;
@@ -2061,7 +2061,7 @@ f.styles = K`
       min-height: 0;
       overflow-y: auto;
       overscroll-behavior: contain;
-      padding: 0 24px 32px;
+      padding: 0 24px calc(32px + var(--ma-footer-space, 0px));
       position: relative;
     }
     .msg {
@@ -2416,7 +2416,10 @@ let w = class extends C {
       return c`<div class="empty">No Music Assistant players found.</div>`;
     const i = this._leaderId, s = this.hass.states[i], a = this._groupIds, r = O(s) ? rt(this.hass, s) : void 0, n = this.hass.states[t]?.attributes.friendly_name ?? t, o = this._config.height ?? "calc(100dvh - var(--header-height, 0px))";
     return c`
-      <div class="root" style="--ma-accent:${this._accent};height:${o}">
+      <div
+        class="root"
+        style="--ma-accent:${this._accent};--ma-footer-space:${this._config.footer_space ?? 0}px;height:${o}"
+      >
         <div class="bg">
           ${r ? c`<div class="bg-img" style="background-image:url('${r}')"></div>` : d}
           <div class="bg-tint"></div>
@@ -2550,6 +2553,7 @@ w.styles = K`
     .main {
       flex: 1;
       min-height: 0;
+      margin-bottom: var(--ma-footer-space, 0px);
     }
     button {
       font: inherit;
@@ -2626,7 +2630,7 @@ w.styles = K`
       position: absolute;
       top: 0;
       right: 0;
-      bottom: 0;
+      bottom: var(--ma-footer-space, 0px);
       z-index: 6;
       width: min(560px, 46%);
       background: rgba(22, 22, 28, 0.96);
@@ -2642,7 +2646,7 @@ w.styles = K`
     .toast {
       position: absolute;
       left: 50%;
-      bottom: 28px;
+      bottom: calc(28px + var(--ma-footer-space, 0px));
       transform: translateX(-50%);
       z-index: 30;
       max-width: 80%;

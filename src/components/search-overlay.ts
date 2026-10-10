@@ -523,7 +523,7 @@ export class MaSearchOverlay extends LitElement {
       min-height: 0;
       overflow-y: auto;
       overscroll-behavior: contain;
-      padding: 0 24px 32px;
+      padding: 0 24px calc(32px + var(--ma-footer-space, 0px));
       position: relative;
     }
     .msg {

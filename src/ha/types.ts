@@ -22,6 +22,8 @@ export interface CardConfig {
   config_entry_id?: string;
   language?: "sv" | "en";
   height?: string;
+  /** Pixels kept free at the bottom, e.g. for a navbar-card overlaying the view. */
+  footer_space?: number;
 }
 
 export type MediaType =

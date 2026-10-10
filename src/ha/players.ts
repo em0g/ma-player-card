@@ -68,8 +68,9 @@ export function getSyncMembers(hass: HomeAssistant, leaderId: string): string[] 
 
 export function hasMedia(e: HassEntity | undefined): boolean {
   if (!e) return false;
+  // Idle players keep the last item when the queue ended; show it so it can be restarted.
   return (
-    (e.state === "playing" || e.state === "paused") &&
+    !["off", "unavailable", "unknown", "standby"].includes(e.state) &&
     !!(e.attributes.media_title || e.attributes.media_content_id)
   );
 }
