@@ -416,7 +416,7 @@ export class MaSearchOverlay extends LitElement {
       return;
     }
     this._libraryTimer = window.setTimeout(() => this._librarySearch(), 250);
-    this._fullTimer = window.setTimeout(() => this._fullSearch(), 900);
+    this._fullTimer = window.setTimeout(() => this._fullSearch(), 600);
   }
 
   private _onKey(e: KeyboardEvent) {

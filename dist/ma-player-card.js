@@ -1951,7 +1951,7 @@ let m = class extends M {
       this._results = null, this._failure = null;
       return;
     }
-    this._libraryTimer = window.setTimeout(() => this._librarySearch(), 250), this._fullTimer = window.setTimeout(() => this._fullSearch(), 900);
+    this._libraryTimer = window.setTimeout(() => this._librarySearch(), 250), this._fullTimer = window.setTimeout(() => this._fullSearch(), 600);
   }
   _onKey(e) {
     e.key === "Enter" ? (this._searchNow(), this._input.blur()) : e.key === "Escape" && this._close();
