@@ -54,5 +54,6 @@ npm install
 cp .env.example .env.local   # set VITE_HA_URL and VITE_HA_TOKEN (long-lived token)
 npm run dev                  # opens /dev/ – the card running against your real HA
 npm run build                # dist/ma-player-card.js
-npm run deploy               # build + copy to HA over SSH (HA_SSH, HA_WWW)
+npm run deploy               # build + overwrite the HACS-installed file over SSH (HA_SSH, HA_WWW)
+                             # and bump the resource ?v= so browsers reload it
 ```

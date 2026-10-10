@@ -8,11 +8,16 @@ const env = Object.fromEntries(
   fs.readFileSync(".env.local", "utf8").trim().split("\n").map((l) => l.split(/=(.*)/s).slice(0, 2)),
 );
 const hash = createHash("sha256").update(fs.readFileSync("dist/ma-player-card.js")).digest("hex").slice(0, 10);
-const url = `/local/ma-player-card/ma-player-card.js?v=${hash}`;
+const url = `/hacsfiles/ma-player-card/ma-player-card.js?v=${hash}`;
 
 const conn = await createConnection({ auth: createLongLivedTokenAuth(env.VITE_HA_URL, env.VITE_HA_TOKEN) });
 const resources = await conn.sendMessagePromise({ type: "lovelace/resources" });
-const existing = resources.find((r) => r.url.startsWith("/local/ma-player-card/"));
+const ours = resources.filter((r) => /\/ma-player-card\.js/.test(r.url));
+const existing = ours[0];
+// Two resources for the card would define the custom elements twice and break it.
+for (const extra of ours.slice(1)) {
+  await conn.sendMessagePromise({ type: "lovelace/resources/delete", resource_id: extra.id });
+}
 if (existing) {
   await conn.sendMessagePromise({ type: "lovelace/resources/update", resource_id: existing.id, res_type: "module", url });
 } else {
