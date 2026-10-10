@@ -81,6 +81,8 @@ export class MaSearchOverlay extends LitElement {
   @state() private _results: SearchResult | null = null;
   @state() private _favorites: SearchResult | null = null;
   @state() private _loading = false;
+  /** Error text from the last search / favorites load, shown in place of results. */
+  @state() private _failure: string | null = null;
   @state() private _menuItem: MaMediaItem | null = null;
   @state() private _vvHeight: number | null = null;
 
@@ -175,6 +177,15 @@ export class MaSearchOverlay extends LitElement {
     const t = this.localize;
     const q = this._query.trim();
     const data = q.length >= 2 ? this._results : this._favorites;
+    if (this._failure && !this._loading) {
+      return html`
+        <div class="msg failure">
+          <div class="failure-title">${t("search_failed")}</div>
+          <div class="failure-detail">${this._failure}</div>
+          <button class="retry" @click=${this._retry}>${t("retry")}</button>
+        </div>
+      `;
+    }
     if (!data) return html`<div class="msg">${this._loading ? t("searching") : ""}</div>`;
 
     const sections = SECTIONS.filter((s) => (this._tab === "all" ? true : s.type === this._tab))
@@ -340,20 +351,34 @@ export class MaSearchOverlay extends LitElement {
     }
     const seq = ++this._seq;
     this._loading = true;
+    this._failure = null;
     try {
       const types = this._tab === "all" ? ALL_TYPES : [this._tab];
       const res = await search(this.hass, this.entryId, q, types, this._tab === "all" ? 12 : 50);
       if (seq === this._seq) this._results = res;
     } catch (err) {
-      if (seq === this._seq) this._error(err);
+      if (seq === this._seq) this._fail(err);
     } finally {
       if (seq === this._seq) this._loading = false;
     }
   }
 
+  private _fail(err: any) {
+    this._failure = err?.message ?? err?.code ?? String(err);
+    console.warn("[ma-player-card] search failed", err);
+  }
+
+  private _retry() {
+    this._failure = null;
+    if (this._query.trim().length >= 2) this._runSearch();
+    else this._loadFavorites();
+  }
+
   private async _loadFavorites() {
     const res: SearchResult = {};
     const keyOf = (type: MediaType) => SECTIONS.find((s) => s.type === type)!.key;
+    let firstError: unknown;
+    let failed = 0;
     await Promise.all(
       FAVORITE_TYPES.map(async (type) => {
         try {
@@ -362,11 +387,18 @@ export class MaSearchOverlay extends LitElement {
             limit: 40,
             order_by: "sort_name",
           });
-        } catch {
+        } catch (err) {
+          firstError ??= err;
+          failed++;
           res[keyOf(type)] = [];
         }
       }),
     );
+    if (failed === FAVORITE_TYPES.length) {
+      this._fail(firstError);
+      this._favoritesRequested = false;
+      return;
+    }
     this._favorites = res;
   }
 
@@ -531,6 +563,31 @@ export class MaSearchOverlay extends LitElement {
       text-align: center;
       font-size: 22px;
       color: var(--ma-text-dim);
+    }
+    .failure {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .failure-title {
+      color: var(--ma-text);
+      font-weight: 700;
+    }
+    .failure-detail {
+      font-size: 17px;
+      max-width: 80%;
+      word-break: break-word;
+    }
+    .retry {
+      margin-top: 8px;
+      height: 56px;
+      padding: 0 28px;
+      border-radius: 28px;
+      background: #fff;
+      color: #111;
+      font-size: 19px;
+      font-weight: 700;
     }
     .loading-bar {
       position: sticky;

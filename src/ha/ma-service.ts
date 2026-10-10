@@ -12,6 +12,25 @@ interface CallServiceResult<T> {
   response: T;
 }
 
+export const CALL_TIMEOUT_MS = 15000;
+
+export class TimeoutError extends Error {
+  constructor(what: string) {
+    super(`${what}: no answer within ${CALL_TIMEOUT_MS / 1000} s`);
+    this.name = "TimeoutError";
+  }
+}
+
+function withTimeout<T>(p: Promise<T>, what: string): Promise<T> {
+  let timer: number;
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) => {
+      timer = window.setTimeout(() => reject(new TimeoutError(what)), CALL_TIMEOUT_MS);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 /** All service calls go over the websocket so errors can be caught and shown in the card. */
 export async function callService<T = unknown>(
   hass: HomeAssistant,
@@ -21,14 +40,17 @@ export async function callService<T = unknown>(
   entityId?: string | string[],
   returnResponse = false,
 ): Promise<T | undefined> {
-  const res = await hass.callWS<CallServiceResult<T>>({
-    type: "call_service",
-    domain,
-    service,
-    service_data: data,
-    ...(entityId ? { target: { entity_id: entityId } } : {}),
-    ...(returnResponse ? { return_response: true } : {}),
-  });
+  const res = await withTimeout(
+    hass.callWS<CallServiceResult<T>>({
+      type: "call_service",
+      domain,
+      service,
+      service_data: data,
+      ...(entityId ? { target: { entity_id: entityId } } : {}),
+      ...(returnResponse ? { return_response: true } : {}),
+    }),
+    `${domain}.${service}`,
+  );
   return res?.response;
 }
 
