@@ -15,18 +15,18 @@ interface CallServiceResult<T> {
 export const CALL_TIMEOUT_MS = 15000;
 
 export class TimeoutError extends Error {
-  constructor(what: string) {
-    super(`${what}: no answer within ${CALL_TIMEOUT_MS / 1000} s`);
+  constructor(what: string, ms: number) {
+    super(`${what}: no answer within ${ms / 1000} s`);
     this.name = "TimeoutError";
   }
 }
 
-function withTimeout<T>(p: Promise<T>, what: string): Promise<T> {
+function withTimeout<T>(p: Promise<T>, what: string, ms: number): Promise<T> {
   let timer: number;
   return Promise.race([
     p,
     new Promise<never>((_, reject) => {
-      timer = window.setTimeout(() => reject(new TimeoutError(what)), CALL_TIMEOUT_MS);
+      timer = window.setTimeout(() => reject(new TimeoutError(what, ms)), ms);
     }),
   ]).finally(() => clearTimeout(timer));
 }
@@ -39,6 +39,7 @@ export async function callService<T = unknown>(
   data: Record<string, unknown> = {},
   entityId?: string | string[],
   returnResponse = false,
+  timeoutMs = CALL_TIMEOUT_MS,
 ): Promise<T | undefined> {
   const res = await withTimeout(
     hass.callWS<CallServiceResult<T>>({
@@ -50,6 +51,7 @@ export async function callService<T = unknown>(
       ...(returnResponse ? { return_response: true } : {}),
     }),
     `${domain}.${service}`,
+    timeoutMs,
   );
   return res?.response;
 }
@@ -77,14 +79,17 @@ export async function search(
   query: string,
   types: MediaType[],
   limit: number,
+  libraryOnly = false,
 ): Promise<SearchResult> {
   const res = await callService<SearchResult>(
     hass,
     "music_assistant",
     "search",
-    { config_entry_id: entryId, name: query, media_type: types, limit },
+    { config_entry_id: entryId, name: query, media_type: types, limit, ...(libraryOnly ? { library_only: true } : {}) },
     undefined,
     true,
+    // Provider searches (Spotify, TuneIn, …) can be slow when nothing is cached.
+    libraryOnly ? CALL_TIMEOUT_MS : 45000,
   );
   const out: SearchResult = {};
   for (const [k, v] of Object.entries(res ?? {})) out[k] = (v ?? []).filter(hasName);

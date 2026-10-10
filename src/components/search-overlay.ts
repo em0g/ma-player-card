@@ -88,8 +88,12 @@ export class MaSearchOverlay extends LitElement {
 
   @query("input") private _input!: HTMLInputElement;
 
-  private _debounce?: number;
-  private _seq = 0;
+  private _libraryTimer?: number;
+  private _fullTimer?: number;
+  /** Key (tab + query) of the provider search whose results are shown; library results are shown until it arrives. */
+  private _completeKey = "";
+  private _fullInFlight = false;
+  private _fullPending = false;
   private _favoritesRequested = false;
   private _longPressTimer?: number;
   private _longPressed = false;
@@ -193,12 +197,17 @@ export class MaSearchOverlay extends LitElement {
       .filter((s) => s.items.length);
 
     if (!sections.length) {
-      return html`<div class="msg">${this._loading ? t("searching") : t("no_results")}</div>`;
+      // Library had nothing, but the provider search hasn't answered yet.
+      const pending = this._loading || (q.length >= 2 && this._completeKey !== this._key);
+      return html`<div class="msg">${pending ? t("searching") : t("no_results")}</div>`;
     }
 
     const single = this._tab !== "all";
     return html`
-      ${this._loading ? html`<div class="loading-bar"></div>` : nothing}
+      ${this._loading || (q.length >= 2 && this._completeKey !== this._key)
+        ? html`<div class="loading-bar"></div>
+            <div class="more-sources">${t("searching_more")}</div>`
+        : nothing}
       ${q.length < 2 ? html`<h2 class="fav-title">${t("favorites")}</h2>` : nothing}
       ${sections.map(
         (s) => html`
@@ -315,16 +324,40 @@ export class MaSearchOverlay extends LitElement {
     `;
   }
 
+  private get _key() {
+    return `${this._tab}|${this._query.trim().toLowerCase()}`;
+  }
+
+  private get _types(): MediaType[] {
+    return this._tab === "all" ? ALL_TYPES : [this._tab];
+  }
+
+  private get _limit() {
+    return this._tab === "all" ? 12 : 50;
+  }
+
+  /**
+   * Two-stage search: the local library answers in milliseconds and is shown
+   * right away; the provider search (Spotify, TuneIn, …) runs once typing has
+   * paused and only one at a time, so a slow on-screen keyboard doesn't pile
+   * up provider requests that delay each other.
+   */
   private _onInput(e: Event) {
     this._query = (e.target as HTMLInputElement).value;
-    clearTimeout(this._debounce);
-    this._debounce = window.setTimeout(() => this._runSearch(), 450);
+    clearTimeout(this._libraryTimer);
+    clearTimeout(this._fullTimer);
+    if (this._query.trim().length < 2) {
+      this._results = null;
+      this._failure = null;
+      return;
+    }
+    this._libraryTimer = window.setTimeout(() => this._librarySearch(), 250);
+    this._fullTimer = window.setTimeout(() => this._fullSearch(), 900);
   }
 
   private _onKey(e: KeyboardEvent) {
     if (e.key === "Enter") {
-      clearTimeout(this._debounce);
-      this._runSearch();
+      this._searchNow();
       // Hide the on-screen keyboard so the results get the whole screen.
       this._input.blur();
     } else if (e.key === "Escape") {
@@ -333,33 +366,71 @@ export class MaSearchOverlay extends LitElement {
   }
 
   private _clear() {
+    clearTimeout(this._libraryTimer);
+    clearTimeout(this._fullTimer);
     this._query = "";
     this._results = null;
+    this._failure = null;
     this._input.focus();
   }
 
   private _setTab(tab: Tab) {
     this._tab = tab;
-    if (this._query.trim().length >= 2) this._runSearch();
+    this._searchNow();
   }
 
-  private async _runSearch() {
-    const q = this._query.trim();
-    if (q.length < 2 || !this.entryId) {
-      this._results = null;
-      return;
+  private _searchNow() {
+    clearTimeout(this._libraryTimer);
+    clearTimeout(this._fullTimer);
+    if (this._query.trim().length < 2) return;
+    if (this._completeKey !== this._key) this._librarySearch();
+    this._fullSearch();
+  }
+
+  private async _librarySearch() {
+    const key = this._key;
+    if (!this.entryId || this._completeKey === key) return;
+    try {
+      const res = await search(this.hass, this.entryId, this._query.trim(), this._types, this._limit, true);
+      // Don't overwrite provider results that already arrived for this query.
+      if (key === this._key && this._completeKey !== key) this._results = res;
+    } catch (err) {
+      console.warn("[ma-player-card] library search failed", err);
     }
-    const seq = ++this._seq;
+  }
+
+  private async _fullSearch() {
+    if (!this.entryId || this._query.trim().length < 2) return;
     this._loading = true;
     this._failure = null;
+    if (this._fullInFlight) {
+      this._fullPending = true;
+      return;
+    }
+    const key = this._key;
+    if (key === this._completeKey) {
+      this._loading = false;
+      return;
+    }
+    this._fullInFlight = true;
     try {
-      const types = this._tab === "all" ? ALL_TYPES : [this._tab];
-      const res = await search(this.hass, this.entryId, q, types, this._tab === "all" ? 12 : 50);
-      if (seq === this._seq) this._results = res;
+      const res = await search(this.hass, this.entryId, this._query.trim(), this._types, this._limit);
+      if (key === this._key) {
+        this._results = res;
+        this._completeKey = key;
+      }
     } catch (err) {
-      if (seq === this._seq) this._fail(err);
+      if (key === this._key) this._fail(err);
     } finally {
-      if (seq === this._seq) this._loading = false;
+      this._fullInFlight = false;
+      if (this._fullPending) {
+        this._fullPending = false;
+        if (this._key !== key) {
+          this._fullSearch();
+          return;
+        }
+      }
+      this._loading = false;
     }
   }
 
@@ -370,8 +441,10 @@ export class MaSearchOverlay extends LitElement {
 
   private _retry() {
     this._failure = null;
-    if (this._query.trim().length >= 2) this._runSearch();
-    else this._loadFavorites();
+    if (this._query.trim().length >= 2) {
+      this._completeKey = "";
+      this._searchNow();
+    } else this._loadFavorites();
   }
 
   private async _loadFavorites() {
@@ -588,6 +661,11 @@ export class MaSearchOverlay extends LitElement {
       color: #111;
       font-size: 19px;
       font-weight: 700;
+    }
+    .more-sources {
+      font-size: 15px;
+      color: var(--ma-text-dim);
+      padding-top: 6px;
     }
     .loading-bar {
       position: sticky;
