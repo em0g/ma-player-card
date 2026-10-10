@@ -94,6 +94,14 @@ export class MaSearchOverlay extends LitElement {
   private _completeKey = "";
   private _fullInFlight = false;
   private _fullPending = false;
+  private _refreshTimer?: number;
+  /** Provider results per tab+query, so switching tabs back and forth doesn't hit Spotify again. */
+  private _cache = new Map<string, SearchResult>();
+  /** Results currently shown are the "all" tab's, standing in until this tab's search answers. */
+  private _provisional = false;
+  private _refreshedKey = "";
+  /** A follow-up search is scheduled to pick up provider results MA finished in the background. */
+  @state() private _refreshing = false;
   private _favoritesRequested = false;
   private _longPressTimer?: number;
   private _longPressed = false;
@@ -198,13 +206,13 @@ export class MaSearchOverlay extends LitElement {
 
     if (!sections.length) {
       // Library had nothing, but the provider search hasn't answered yet.
-      const pending = this._loading || (q.length >= 2 && this._completeKey !== this._key);
+      const pending = this._loading || this._refreshing || (q.length >= 2 && this._completeKey !== this._key);
       return html`<div class="msg">${pending ? t("searching") : t("no_results")}</div>`;
     }
 
     const single = this._tab !== "all";
     return html`
-      ${this._loading || (q.length >= 2 && this._completeKey !== this._key)
+      ${this._loading || this._refreshing || (q.length >= 2 && this._completeKey !== this._key)
         ? html`<div class="loading-bar"></div>
             <div class="more-sources">${t("searching_more")}</div>`
         : nothing}
@@ -333,7 +341,7 @@ export class MaSearchOverlay extends LitElement {
   }
 
   private get _limit() {
-    return this._tab === "all" ? 12 : 50;
+    return this._tab === "all" ? 12 : 30;
   }
 
   /**
@@ -342,8 +350,15 @@ export class MaSearchOverlay extends LitElement {
    * paused and only one at a time, so a slow on-screen keyboard doesn't pile
    * up provider requests that delay each other.
    */
+  private _cancelRefresh() {
+    clearTimeout(this._refreshTimer);
+    this._refreshing = false;
+  }
+
   private _onInput(e: Event) {
     this._query = (e.target as HTMLInputElement).value;
+    this._provisional = false;
+    this._cancelRefresh();
     clearTimeout(this._libraryTimer);
     clearTimeout(this._fullTimer);
     if (this._query.trim().length < 2) {
@@ -366,6 +381,7 @@ export class MaSearchOverlay extends LitElement {
   }
 
   private _clear() {
+    this._cancelRefresh();
     clearTimeout(this._libraryTimer);
     clearTimeout(this._fullTimer);
     this._query = "";
@@ -375,6 +391,9 @@ export class MaSearchOverlay extends LitElement {
   }
 
   private _setTab(tab: Tab) {
+    if (tab === this._tab) return;
+    this._provisional = false;
+    this._cancelRefresh();
     this._tab = tab;
     this._searchNow();
   }
@@ -382,7 +401,21 @@ export class MaSearchOverlay extends LitElement {
   private _searchNow() {
     clearTimeout(this._libraryTimer);
     clearTimeout(this._fullTimer);
-    if (this._query.trim().length < 2) return;
+    const q = this._query.trim();
+    if (q.length < 2) return;
+    const cached = this._cache.get(this._key);
+    if (cached) {
+      this._results = cached;
+      this._completeKey = this._key;
+      this._loading = false;
+      return;
+    }
+    // Show what the "all" search already found for this tab while the full list loads.
+    const all = this._cache.get(`all|${q.toLowerCase()}`);
+    if (all) {
+      this._results = all;
+      this._provisional = true;
+    }
     if (this._completeKey !== this._key) this._librarySearch();
     this._fullSearch();
   }
@@ -393,7 +426,8 @@ export class MaSearchOverlay extends LitElement {
     try {
       const res = await search(this.hass, this.entryId, this._query.trim(), this._types, this._limit, true);
       // Don't overwrite provider results that already arrived for this query.
-      if (key === this._key && this._completeKey !== key) this._results = res;
+      // …nor the provider results borrowed from the "all" tab, which beat library-only ones.
+      if (key === this._key && this._completeKey !== key && !this._provisional) this._results = res;
     } catch (err) {
       console.warn("[ma-player-card] library search failed", err);
     }
@@ -413,11 +447,20 @@ export class MaSearchOverlay extends LitElement {
       return;
     }
     this._fullInFlight = true;
+    const started = Date.now();
     try {
       const res = await search(this.hass, this.entryId, this._query.trim(), this._types, this._limit);
+      this._cache.set(key, res);
+      if (this._cache.size > 20) this._cache.delete(this._cache.keys().next().value!);
       if (key === this._key) {
         this._results = res;
+        this._provisional = false;
         this._completeKey = key;
+        // MA answers without a provider that is too slow (typically Spotify) and keeps
+        // searching in the background; ask once more to pick up those cached results.
+        if ((Date.now() - started > 4000 || countItems(res) === 0) && this._refreshedKey !== key) {
+          this._scheduleRefresh(key, countItems(res));
+        }
       }
     } catch (err) {
       if (key === this._key) this._fail(err);
@@ -432,6 +475,26 @@ export class MaSearchOverlay extends LitElement {
       }
       this._loading = false;
     }
+  }
+
+  private _scheduleRefresh(key: string, had: number) {
+    this._refreshedKey = key;
+    this._refreshing = true;
+    clearTimeout(this._refreshTimer);
+    this._refreshTimer = window.setTimeout(async () => {
+      try {
+        if (key !== this._key) return;
+        const res = await search(this.hass, this.entryId, this._query.trim(), this._types, this._limit);
+        if (countItems(res) > had) {
+          this._cache.set(key, res);
+          if (key === this._key) this._results = res;
+        }
+      } catch (err) {
+        console.warn("[ma-player-card] follow-up search failed", err);
+      } finally {
+        if (key === this._key) this._refreshing = false;
+      }
+    }, 6000);
   }
 
   private _fail(err: any) {
@@ -892,6 +955,8 @@ export class MaSearchOverlay extends LitElement {
     }
   `;
 }
+
+const countItems = (res: SearchResult) => Object.values(res).reduce((n, v) => n + (v?.length ?? 0), 0);
 
 function itemImage(item: MaMediaItem): string | undefined {
   const img = item.image || item.album?.image;
