@@ -13,7 +13,9 @@ All communication goes through Home Assistant's Music Assistant integration – 
 ## Installation
 
 ### HACS
-Add this repository as a custom repository (type *Dashboard*) and install **MA Player Card**.
+1. HACS → ⋮ → **Custom repositories** → add `https://github.com/em0g/ma-player-card`, type **Dashboard**.
+2. Install **MA Player Card** and reload the browser. HACS registers the resource
+   `/hacsfiles/ma-player-card/ma-player-card.js` for you.
 
 ### Manual
 Copy `dist/ma-player-card.js` to `/config/www/ma-player-card/` and add the resource
