@@ -19,6 +19,7 @@ import {
   mdiRadio,
   mdiRadioTower,
   mdiSkipForward,
+  mdiHistory,
 } from "../utils/icon";
 
 type Tab = "all" | MediaType;
@@ -50,6 +51,8 @@ const TABS: { tab: Tab; label: StringKey }[] = [
 ];
 
 const ALL_TYPES: MediaType[] = ["artist", "album", "track", "playlist", "radio"];
+/** Section order on the recently played page – what people tend to replay first. */
+const RECENT_TYPES: MediaType[] = ["playlist", "album", "track", "radio", "artist"];
 const FAVORITE_TYPES: MediaType[] = ["playlist", "album", "artist", "radio", "track"];
 
 const TYPE_ICON: Record<MediaType, string> = {
@@ -63,7 +66,10 @@ const TYPE_ICON: Record<MediaType, string> = {
 };
 
 /**
- * Fullscreen search pinned to the top of the screen. The overlay height
+ * Fullscreen browser in two modes: search (input pinned to the top of the
+ * screen) and recently played (library sorted by last played).
+ *
+ * In search mode the input is pinned to the top of the screen. The overlay height
  * follows `visualViewport`, so when the on-screen keyboard opens the result
  * list shrinks instead of ending up underneath the keyboard.
  */
@@ -75,6 +81,7 @@ export class MaSearchOverlay extends LitElement {
   @property() playerName = "";
   @property() entryId = "";
   @property({ type: Boolean, reflect: true }) open = false;
+  @property() mode: "search" | "recent" = "search";
 
   @state() private _query = "";
   @state() private _tab: Tab = "all";
@@ -85,6 +92,10 @@ export class MaSearchOverlay extends LitElement {
   @state() private _failure: string | null = null;
   @state() private _menuItem: MaMediaItem | null = null;
   @state() private _vvHeight: number | null = null;
+  @state() private _recentTab: Tab = "all";
+  @state() private _recent: SearchResult | null = null;
+  @state() private _recentLoading = false;
+  private _recentCache = new Map<Tab, SearchResult>();
 
   @query("input") private _input!: HTMLInputElement;
 
@@ -128,6 +139,15 @@ export class MaSearchOverlay extends LitElement {
 
   protected willUpdate(changed: PropertyValues) {
     if (changed.has("open") && this.open) this._onViewport();
+    if (this.mode === "recent") {
+      // Reload every time the page is opened so it reflects what was just played.
+      if ((changed.has("open") || changed.has("mode") || changed.has("entryId")) && this.open && this.entryId) {
+        this._recentCache.clear();
+        this._recentTab = "all";
+        this._loadRecent("all");
+      }
+      return;
+    }
     if ((changed.has("open") || changed.has("entryId")) && this.open && this.entryId && !this._favoritesRequested) {
       this._favoritesRequested = true;
       this._loadFavorites();
@@ -135,7 +155,7 @@ export class MaSearchOverlay extends LitElement {
   }
 
   protected updated(changed: PropertyValues) {
-    if (changed.has("open") && this.open) {
+    if ((changed.has("open") || changed.has("mode")) && this.open && this.mode === "search") {
       this._input?.focus();
       this._input?.select();
     }
@@ -148,7 +168,9 @@ export class MaSearchOverlay extends LitElement {
     return html`
       <div class="sheet" style=${style}>
         <div class="top">
-          <label class="field">
+          ${this.mode === "recent"
+            ? html`<h2 class="page-title">${icon(mdiHistory)} ${t("recent")}</h2>`
+            : html`<label class="field">
             ${icon(mdiMagnify)}
             <input
               type="search"
@@ -166,13 +188,13 @@ export class MaSearchOverlay extends LitElement {
             ${this._query
               ? html`<button class="clear" @click=${this._clear} aria-label="clear">${icon(mdiClose)}</button>`
               : nothing}
-          </label>
+          </label>`}
           <button class="close" @click=${this._close}>${t("close")}</button>
         </div>
         <div class="tabs">
           ${TABS.map(
             ({ tab, label }) => html`
-              <button class="tab ${this._tab === tab ? "on" : ""}" @click=${() => this._setTab(tab)}>
+              <button class="tab ${this._activeTab === tab ? "on" : ""}" @click=${() => this._setTab(tab)}>
                 ${t(label)}
               </button>
             `,
@@ -185,7 +207,40 @@ export class MaSearchOverlay extends LitElement {
     `;
   }
 
+  private get _activeTab(): Tab {
+    return this.mode === "recent" ? this._recentTab : this._tab;
+  }
+
+  private _renderRecent() {
+    const t = this.localize;
+    const data = this._recent;
+    if (!data) return html`<div class="msg">${this._recentLoading ? t("searching") : ""}</div>`;
+    const tab = this._recentTab;
+    const sections = RECENT_TYPES.filter((type) => tab === "all" || type === tab)
+      .map((type) => SECTIONS.find((s) => s.type === type)!)
+      .concat(tab !== "all" && !RECENT_TYPES.includes(tab) ? SECTIONS.filter((s) => s.type === tab) : [])
+      .map((s) => ({ ...s, items: data[s.key] ?? [] }))
+      .filter((s) => s.items.length);
+    if (!sections.length) return html`<div class="msg">${this._recentLoading ? t("searching") : t("no_results")}</div>`;
+    return this._renderSections(sections, tab !== "all");
+  }
+
+  private _renderSections(sections: (Section & { items: MaMediaItem[] })[], single: boolean) {
+    const t = this.localize;
+    return html`${sections.map(
+      (s) => html`
+        <section>
+          ${single ? nothing : html`<h3>${t(s.label)}</h3>`}
+          ${s.type === "track"
+            ? html`<div class="tracks ${single ? "full" : ""}">${s.items.map((i) => this._renderTrack(i))}</div>`
+            : html`<div class="${single ? "grid" : "row"}">${s.items.map((i) => this._renderTile(i))}</div>`}
+        </section>
+      `,
+    )}`;
+  }
+
   private _renderBody() {
+    if (this.mode === "recent") return this._renderRecent();
     const t = this.localize;
     const q = this._query.trim();
     const data = q.length >= 2 ? this._results : this._favorites;
@@ -217,16 +272,7 @@ export class MaSearchOverlay extends LitElement {
             <div class="more-sources">${t("searching_more")}</div>`
         : nothing}
       ${q.length < 2 ? html`<h2 class="fav-title">${t("favorites")}</h2>` : nothing}
-      ${sections.map(
-        (s) => html`
-          <section>
-            ${single ? nothing : html`<h3>${t(s.label)}</h3>`}
-            ${s.type === "track"
-              ? html`<div class="tracks ${single ? "full" : ""}">${s.items.map((i) => this._renderTrack(i))}</div>`
-              : html`<div class="${single ? "grid" : "row"}">${s.items.map((i) => this._renderTile(i))}</div>`}
-          </section>
-        `,
-      )}
+      ${this._renderSections(sections, single)}
     `;
   }
 
@@ -262,7 +308,8 @@ export class MaSearchOverlay extends LitElement {
           @click=${h.click}
         >
           <div class="cover">
-            ${img ? html`<img src=${img} alt="" loading="lazy" />` : icon(TYPE_ICON[item.media_type])}
+            ${icon(TYPE_ICON[item.media_type])}
+            ${img ? html`<img src=${img} alt="" loading="lazy" @error=${hideBroken} />` : nothing}
             <span class="play-badge">${icon(mdiPlay)}</span>
           </div>
           <div class="tile-name">${item.name}</div>
@@ -287,7 +334,9 @@ export class MaSearchOverlay extends LitElement {
           @contextmenu=${(e: Event) => e.preventDefault()}
           @click=${h.click}
         >
-          <div class="track-cover">${img ? html`<img src=${img} alt="" loading="lazy" />` : icon(mdiMusicNote)}</div>
+          <div class="track-cover">
+            ${icon(mdiMusicNote)}${img ? html`<img src=${img} alt="" loading="lazy" @error=${hideBroken} />` : nothing}
+          </div>
           <div class="track-text">
             <div class="tile-name">${item.name}</div>
             <div class="tile-sub">${subtitle(item, this.localize)}</div>
@@ -391,6 +440,12 @@ export class MaSearchOverlay extends LitElement {
   }
 
   private _setTab(tab: Tab) {
+    if (this.mode === "recent") {
+      if (tab === this._recentTab) return;
+      this._recentTab = tab;
+      this._loadRecent(tab);
+      return;
+    }
     if (tab === this._tab) return;
     this._provisional = false;
     this._cancelRefresh();
@@ -510,6 +565,35 @@ export class MaSearchOverlay extends LitElement {
     } else this._loadFavorites();
   }
 
+  private async _loadRecent(tab: Tab) {
+    const cached = this._recentCache.get(tab);
+    if (cached) {
+      this._recent = cached;
+      return;
+    }
+    // Keep showing the "all" lists for this tab while the longer list loads.
+    this._recent = tab === "all" ? null : (this._recentCache.get("all") ?? null);
+    this._recentLoading = true;
+    const types = tab === "all" ? RECENT_TYPES : [tab];
+    const res: SearchResult = {};
+    try {
+      await Promise.all(
+        types.map(async (type) => {
+          res[SECTIONS.find((s) => s.type === type)!.key] = await getLibrary(this.hass, this.entryId, type, {
+            order_by: "last_played_desc",
+            limit: tab === "all" ? 12 : 50,
+          });
+        }),
+      );
+      this._recentCache.set(tab, res);
+      if (this._recentTab === tab) this._recent = res;
+    } catch (err) {
+      if (this._recentTab === tab) this._error(err);
+    } finally {
+      if (this._recentTab === tab) this._recentLoading = false;
+    }
+  }
+
   private async _loadFavorites() {
     const res: SearchResult = {};
     const keyOf = (type: MediaType) => SECTIONS.find((s) => s.type === type)!.key;
@@ -610,6 +694,21 @@ export class MaSearchOverlay extends LitElement {
       align-items: center;
       gap: 16px;
       padding: 16px 24px 8px;
+    }
+    .page-title {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      height: 68px;
+      margin: 0;
+      padding-left: 8px;
+      font-size: 30px;
+      font-weight: 700;
+    }
+    .page-title .icon {
+      width: 34px;
+      height: 34px;
     }
     .field {
       flex: 1;
@@ -892,7 +991,12 @@ export class MaSearchOverlay extends LitElement {
       background: rgba(255, 255, 255, 0.08);
       color: var(--ma-text-dim);
     }
+    .track-cover {
+      position: relative;
+    }
     .track-cover img {
+      position: absolute;
+      inset: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
@@ -955,6 +1059,9 @@ export class MaSearchOverlay extends LitElement {
     }
   `;
 }
+
+/** Drop images that fail to load so the type icon placeholder shows instead of a broken image. */
+const hideBroken = (e: Event) => (e.target as HTMLElement).remove();
 
 const countItems = (res: SearchResult) => Object.values(res).reduce((n, v) => n + (v?.length ?? 0), 0);
 

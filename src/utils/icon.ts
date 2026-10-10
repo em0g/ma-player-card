@@ -37,6 +37,7 @@ export {
   mdiChevronDown,
   mdiPlaylistPlay,
   mdiSkipForward,
+  mdiHistory,
 } from "@mdi/js";
 
 export const icon = (path: string) =>

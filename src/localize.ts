@@ -28,7 +28,7 @@ const sv = {
   podcasts: "Podcasts",
   audiobooks: "Ljudböcker",
   favorites: "Favoriter",
-  recent: "Senast spelat",
+  recent: "Senast spelade",
   no_results: "Inga träffar",
   searching: "Söker…",
   searching_more: "Söker i fler källor…",

@@ -6,7 +6,7 @@ import { getQueue, resolveConfigEntryId } from "./ha/ma-service";
 import { getLocalize, type Localize } from "./localize";
 import { dominantColor } from "./utils/color";
 import { entityImage } from "./utils/media";
-import { icon, mdiChevronDown, mdiMagnify, mdiSpeakerMultiple } from "./utils/icon";
+import { icon, mdiChevronDown, mdiHistory, mdiMagnify, mdiSpeakerMultiple } from "./utils/icon";
 import "./components/now-playing";
 import "./components/speaker-panel";
 import "./components/search-overlay";
@@ -15,7 +15,7 @@ const VERSION = "0.1.0";
 const STORAGE_KEY = "ma-player-card.active";
 const DEFAULT_ACCENT = "120, 170, 255";
 
-type Panel = "none" | "speakers" | "search";
+type Panel = "none" | "speakers" | "search" | "recent";
 
 @customElement("ma-player-card")
 export class MaPlayerCard extends LitElement {
@@ -159,6 +159,9 @@ export class MaPlayerCard extends LitElement {
           <button class="search-btn" @click=${() => (this._panel = "search")}>
             ${icon(mdiMagnify)} <span>${t("search")}</span>
           </button>
+          <button class="recent-btn" @click=${() => (this._panel = "recent")}>
+            ${icon(mdiHistory)} <span>${t("recent")}</span>
+          </button>
           <button class="player-btn" @click=${() => (this._panel = "speakers")}>
             ${icon(mdiSpeakerMultiple)}
             <span class="player-name">${activeName}</span>
@@ -202,7 +205,8 @@ export class MaPlayerCard extends LitElement {
           .entityId=${leaderId}
           .playerName=${activeName}
           .entryId=${this._entryId}
-          ?open=${this._panel === "search"}
+          .mode=${this._panel === "recent" ? "recent" : "search"}
+          ?open=${this._panel === "search" || this._panel === "recent"}
           @close=${this._closePanel}
         ></ma-search-overlay>
 
@@ -332,6 +336,7 @@ export class MaPlayerCard extends LitElement {
       display: block;
     }
     .search-btn,
+    .recent-btn,
     .player-btn {
       height: 64px;
       border-radius: 32px;
@@ -345,6 +350,7 @@ export class MaPlayerCard extends LitElement {
       transition: background 0.15s;
     }
     .search-btn:active,
+    .recent-btn:active,
     .player-btn:active {
       background: rgba(255, 255, 255, 0.22);
     }
@@ -353,6 +359,11 @@ export class MaPlayerCard extends LitElement {
       max-width: 560px;
       padding: 0 26px;
       color: var(--ma-text-dim);
+    }
+    .recent-btn {
+      flex: none;
+      padding: 0 24px 0 20px;
+      font-weight: 600;
     }
     .player-btn {
       margin-left: auto;
