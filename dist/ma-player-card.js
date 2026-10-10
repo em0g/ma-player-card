@@ -1114,6 +1114,7 @@ E.styles = K`
       justify-content: center;
       gap: clamp(16px, 3vh, 32px);
       min-width: 0;
+      max-width: 720px;
     }
     .title {
       font-size: clamp(32px, 4.2vw, 64px);
@@ -1153,7 +1154,6 @@ E.styles = K`
       display: flex;
       align-items: center;
       justify-content: space-between;
-      max-width: 620px;
     }
     button {
       font: inherit;
@@ -1211,7 +1211,6 @@ E.styles = K`
       display: flex;
       align-items: center;
       gap: 12px;
-      max-width: 620px;
       --ma-slider-height: 14px;
       --ma-slider-thumb: 34px;
     }
@@ -1237,7 +1236,6 @@ E.styles = K`
       gap: 12px;
       align-items: baseline;
       min-width: 0;
-      max-width: 620px;
     }
     .next-label {
       text-transform: uppercase;
