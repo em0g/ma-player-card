@@ -1,0 +1,22 @@
+{
+  "name": "ma-player-card",
+  "version": "0.1.0",
+  "description": "Fullscreen Music Assistant player card for Home Assistant kiosk dashboards",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "deploy": "npm run build && ./scripts/deploy.sh"
+  },
+  "dependencies": {
+    "@mdi/js": "^7.4.47",
+    "lit": "^3.3.1"
+  },
+  "devDependencies": {
+    "home-assistant-js-websocket": "^9.5.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9"
+  }
+}

@@ -1,0 +1,43 @@
+import { svg } from "lit";
+
+export {
+  mdiAccountMusic,
+  mdiAlbum,
+  mdiArrowLeft,
+  mdiCheck,
+  mdiClose,
+  mdiDotsVertical,
+  mdiMagnify,
+  mdiMusicNote,
+  mdiPause,
+  mdiPlay,
+  mdiPlaylistMusic,
+  mdiPlaylistPlus,
+  mdiPlusCircleOutline,
+  mdiMinusCircleOutline,
+  mdiRadio,
+  mdiRadioTower,
+  mdiRepeat,
+  mdiRepeatOff,
+  mdiRepeatOnce,
+  mdiShuffle,
+  mdiShuffleDisabled,
+  mdiSkipNext,
+  mdiSkipPrevious,
+  mdiSpeaker,
+  mdiSpeakerMultiple,
+  mdiSwapHorizontal,
+  mdiVolumeHigh,
+  mdiVolumeLow,
+  mdiVolumeMedium,
+  mdiVolumeOff,
+  mdiPodcast,
+  mdiBookOpenPageVariant,
+  mdiHeart,
+  mdiChevronDown,
+  mdiPlaylistPlay,
+  mdiSkipForward,
+} from "@mdi/js";
+
+export const icon = (path: string) =>
+  svg`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d=${path}></path></svg>`;
