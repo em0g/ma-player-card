@@ -4,6 +4,7 @@
   "description": "Fullscreen Music Assistant player card for Home Assistant kiosk dashboards",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

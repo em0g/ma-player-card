@@ -57,3 +57,7 @@ npm run build                # dist/ma-player-card.js
 npm run deploy               # build + overwrite the HACS-installed file over SSH (HA_SSH, HA_WWW)
                              # and bump the resource ?v= so browsers reload it
 ```
+
+## License
+
+[MIT](LICENSE)
