@@ -2589,7 +2589,7 @@ var Ni = Object.defineProperty, Ui = Object.getOwnPropertyDescriptor, C = (e, t,
     (n = e[r]) && (a = (s ? n(t, i, a) : n(a)) || a);
   return s && a && Ni(t, i, a), a;
 };
-const ji = "0.1.0", de = "ma-player-card.active", gt = "120, 170, 255";
+const ji = "0.1.1", de = "ma-player-card.active", gt = "120, 170, 255";
 let x = class extends M {
   constructor() {
     super(...arguments), this._panel = "none", this._nextItem = null, this._entryId = "", this._accent = gt, this._toast = null, this._localize = qt("sv"), this._players = [], this._queueKey = "", this._entryRequested = !1, this._accentFor = "", this._top = 0, this._measure = () => {

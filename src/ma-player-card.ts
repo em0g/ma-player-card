@@ -11,7 +11,7 @@ import "./components/now-playing";
 import "./components/speaker-panel";
 import "./components/search-overlay";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 const STORAGE_KEY = "ma-player-card.active";
 const DEFAULT_ACCENT = "120, 170, 255";
 

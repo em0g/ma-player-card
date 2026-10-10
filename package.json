@@ -1,6 +1,6 @@
 {
   "name": "ma-player-card",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fullscreen Music Assistant player card for Home Assistant kiosk dashboards",
   "type": "module",
   "private": true,

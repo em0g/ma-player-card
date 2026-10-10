@@ -8,6 +8,10 @@ A fullscreen [Music Assistant](https://music-assistant.io) player card for Home 
 - Search pinned to the top of the screen so the on-screen keyboard never covers it; favorites when the field is empty
 - Swedish (default) and English UI
 
+![Now playing](docs/now-playing.jpg)
+
+![Search](docs/search.jpg)
+
 All communication goes through Home Assistant's Music Assistant integration – no direct connection to the MA server.
 
 ## Installation
