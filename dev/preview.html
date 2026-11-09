@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MA Player Card – layouts</title>
     <style>
-      body { margin: 0; padding: 24px; background: #111; font-family: system-ui, sans-serif; color: #ddd; }
-      body.light { background: #f2f2f2; color: #222; --primary-text-color: #212121; --secondary-text-color: #727272; --card-background-color: #fff; }
-      h2 { font-size: 14px; font-weight: 600; margin: 24px 0 8px; opacity: 0.7; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 16px; align-items: start; }
-      .narrow { max-width: 300px; }
+      html, body { margin: 0; }
+      body { padding: 24px; font-family: system-ui, sans-serif; min-height: 100vh; box-sizing: border-box; }
+      #cards { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+      .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+      ma-player-card { flex: none; max-width: calc(100vw - 48px); }
     </style>
   </head>
   <body>

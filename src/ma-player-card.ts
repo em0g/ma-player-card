@@ -518,10 +518,16 @@ export class MaPlayerCard extends LitElement {
       -webkit-backdrop-filter: blur(24px);
       box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
       transform: translateX(105%);
-      transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+      /* Hidden when closed so its shadow doesn't darken the screen edge. */
+      visibility: hidden;
+      transition:
+        transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+        visibility 0s 0.28s;
     }
     .drawer.open {
       transform: none;
+      visibility: visible;
+      transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
     .toast {
       position: absolute;
