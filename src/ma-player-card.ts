@@ -10,8 +10,11 @@ import { icon, mdiChevronDown, mdiHistory, mdiMagnify, mdiSpeakerMultiple } from
 import "./components/now-playing";
 import "./components/speaker-panel";
 import "./components/search-overlay";
+import "./components/card-player";
+import "./editor";
+import { displayOptions, layoutOf } from "./ha/options";
 
-const VERSION = "0.1.1";
+const VERSION = "0.2.0";
 const STORAGE_KEY = "ma-player-card.active";
 const DEFAULT_ACCENT = "120, 170, 255";
 
@@ -43,6 +46,7 @@ export class MaPlayerCard extends LitElement {
    * trusted because kiosk-mode hides the header without resetting it.
    */
   private _measure = () => {
+    if (layoutOf(this._config) !== "fullscreen") return;
     cancelAnimationFrame(this._measureFrame!);
     this._measureFrame = requestAnimationFrame(() => {
       const top = Math.max(0, Math.round(this.getBoundingClientRect().top + window.scrollY));
@@ -51,7 +55,11 @@ export class MaPlayerCard extends LitElement {
   };
 
   static getStubConfig() {
-    return { type: "custom:ma-player-card" };
+    return { type: "custom:ma-player-card", layout: "large" };
+  }
+
+  static getConfigElement() {
+    return document.createElement("ma-player-card-editor");
   }
 
   setConfig(config: CardConfig) {
@@ -61,10 +69,14 @@ export class MaPlayerCard extends LitElement {
   }
 
   getCardSize() {
-    return 12;
+    const layout = layoutOf(this._config);
+    return layout === "compact" ? 2 : layout === "large" ? 7 : 12;
   }
 
   getGridOptions() {
+    const layout = layoutOf(this._config);
+    if (layout === "compact") return { columns: 12, rows: "auto", min_columns: 6 };
+    if (layout === "large") return { columns: 6, rows: "auto", min_columns: 4 };
     return { columns: "full", rows: "auto" };
   }
 
@@ -133,11 +145,29 @@ export class MaPlayerCard extends LitElement {
 
   protected render() {
     if (!this.hass || !this._config) return nothing;
-    const t = this._localize;
     const activeId = this._activeId;
     if (!activeId) {
       return html`<div class="empty">No Music Assistant players found.</div>`;
     }
+    const layout = layoutOf(this._config);
+    return layout === "fullscreen" ? this._renderFullscreen(activeId) : this._renderCard(activeId, layout);
+  }
+
+  private get _vars() {
+    return `--ma-accent:${this._accent};--ma-footer-space:${this._config.footer_space ?? 0}px`;
+  }
+
+  private _renderBackground(bg: string | undefined) {
+    return html`
+      <div class="bg">
+        ${bg ? html`<div class="bg-img" style="background-image:url('${bg}')"></div>` : nothing}
+        <div class="bg-tint"></div>
+      </div>
+    `;
+  }
+
+  private _renderFullscreen(activeId: string) {
+    const t = this._localize;
     const leaderId = this._leaderId;
     const leader = this.hass.states[leaderId];
     const groupIds = this._groupIds;
@@ -146,14 +176,8 @@ export class MaPlayerCard extends LitElement {
     const height = this._config.height ?? `calc(100dvh - ${this._top}px)`;
 
     return html`
-      <div
-        class="root"
-        style="--ma-accent:${this._accent};--ma-footer-space:${this._config.footer_space ?? 0}px;height:${height}"
-      >
-        <div class="bg">
-          ${bg ? html`<div class="bg-img" style="background-image:url('${bg}')"></div>` : nothing}
-          <div class="bg-tint"></div>
-        </div>
+      <div class="root" style="${this._vars};height:${height}">
+        ${this._renderBackground(bg)}
 
         <div class="topbar">
           <button class="search-btn" @click=${() => (this._panel = "search")}>
@@ -181,39 +205,80 @@ export class MaPlayerCard extends LitElement {
           @open-speakers=${() => (this._panel = "speakers")}
         ></ma-now-playing>
 
-        <div class="scrim ${this._panel === "speakers" ? "show" : ""}" @click=${this._closePanel}></div>
-        <aside class="drawer ${this._panel === "speakers" ? "open" : ""}">
-          ${this._panel === "speakers"
-            ? html`
-                <ma-speaker-panel
-                  .hass=${this.hass}
-                  .localize=${t}
-                  .players=${this._players}
-                  .activeId=${activeId}
-                  .leaderId=${leaderId}
-                  .groupIds=${groupIds}
-                  @select-player=${(e: CustomEvent<string>) => this._select(e.detail)}
-                  @close=${this._closePanel}
-                ></ma-speaker-panel>
-              `
-            : nothing}
-        </aside>
-
-        <ma-search-overlay
-          .hass=${this.hass}
-          .localize=${t}
-          .entityId=${leaderId}
-          .playerName=${activeName}
-          .entryId=${this._entryId}
-          .mode=${this._panel === "recent" ? "recent" : "search"}
-          ?open=${this._panel === "search" || this._panel === "recent"}
-          @close=${this._closePanel}
-        ></ma-search-overlay>
-
-        ${this._toast
-          ? html`<div class="toast ${this._toast.error ? "error" : ""}">${this._toast.text}</div>`
-          : nothing}
+        ${this._renderOverlays(activeId)}
       </div>
+    `;
+  }
+
+  /** Large / compact: a regular dashboard card; speakers and search open as popups. */
+  private _renderCard(activeId: string, layout: "large" | "compact") {
+    const opts = displayOptions(this._config);
+    const leaderId = this._leaderId;
+    const leader = this.hass.states[leaderId];
+    const bg = opts.background === "artwork" && hasMedia(leader) ? entityImage(this.hass, leader) : undefined;
+    const activeName = this.hass.states[activeId]?.attributes.friendly_name ?? activeId;
+
+    return html`
+      <div class="popup-host" style=${this._vars}>
+        <ha-card class="card ${layout} bg-${opts.background}">
+          ${opts.background === "theme" ? nothing : this._renderBackground(bg)}
+          <ma-card-player
+            class="main"
+            .hass=${this.hass}
+            .localize=${this._localize}
+            .variant=${layout}
+            .options=${opts}
+            .entityId=${leaderId}
+            .playerName=${activeName}
+            .volumeIds=${this._groupIds}
+            .nextItem=${this._nextItem}
+            @open-search=${() => (this._panel = "search")}
+            @open-recent=${() => (this._panel = "recent")}
+            @open-speakers=${() => (this._panel = "speakers")}
+          ></ma-card-player>
+        </ha-card>
+        ${this._renderOverlays(activeId)}
+      </div>
+    `;
+  }
+
+  private _renderOverlays(activeId: string) {
+    const t = this._localize;
+    const leaderId = this._leaderId;
+    const activeName = this.hass.states[activeId]?.attributes.friendly_name ?? activeId;
+    return html`
+      <div class="scrim ${this._panel === "speakers" ? "show" : ""}" @click=${this._closePanel}></div>
+      <aside class="drawer ${this._panel === "speakers" ? "open" : ""}">
+        ${this._panel === "speakers"
+          ? html`
+              <ma-speaker-panel
+                .hass=${this.hass}
+                .localize=${t}
+                .players=${this._players}
+                .activeId=${activeId}
+                .leaderId=${leaderId}
+                .groupIds=${this._groupIds}
+                @select-player=${(e: CustomEvent<string>) => this._select(e.detail)}
+                @close=${this._closePanel}
+              ></ma-speaker-panel>
+            `
+          : nothing}
+      </aside>
+
+      <ma-search-overlay
+        .hass=${this.hass}
+        .localize=${t}
+        .entityId=${leaderId}
+        .playerName=${activeName}
+        .entryId=${this._entryId}
+        .mode=${this._panel === "recent" ? "recent" : "search"}
+        ?open=${this._panel === "search" || this._panel === "recent"}
+        @close=${this._closePanel}
+      ></ma-search-overlay>
+
+      ${this._toast
+        ? html`<div class="toast ${this._toast.error ? "error" : ""}">${this._toast.text}</div>`
+        : nothing}
     `;
   }
 
@@ -307,6 +372,50 @@ export class MaPlayerCard extends LitElement {
     .main {
       position: relative;
       z-index: 1;
+    }
+
+    /* ---- large / compact cards ---- */
+    .card {
+      position: relative;
+      display: block;
+      overflow: hidden;
+      isolation: isolate;
+      background: #16161b;
+      color: var(--ma-text);
+      border-radius: var(--ha-card-border-radius, 12px);
+      --ma-chip-bg: rgba(255, 255, 255, 0.12);
+      --ma-chip-bg-active: rgba(255, 255, 255, 0.22);
+      --ma-play-bg: #fff;
+      --ma-play-fg: #111;
+    }
+    .card .bg-img {
+      filter: blur(40px) saturate(1.3) brightness(0.5);
+    }
+    .card.bg-accent .bg-tint {
+      background:
+        radial-gradient(ellipse at 15% 20%, rgba(var(--ma-accent), 0.55), transparent 70%),
+        linear-gradient(135deg, rgba(var(--ma-accent), 0.25), rgba(0, 0, 0, 0.5));
+    }
+    .card.bg-theme {
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      --ma-text: var(--primary-text-color, #212121);
+      --ma-text-dim: var(--secondary-text-color, #727272);
+      --ma-chip-bg: rgba(127, 127, 127, 0.14);
+      --ma-chip-bg-active: rgba(127, 127, 127, 0.26);
+      --ma-play-bg: rgb(var(--ma-accent));
+      --ma-play-fg: #fff;
+      --ma-slider-rail: rgba(127, 127, 127, 0.3);
+      --ma-slider-fill: rgb(var(--ma-accent));
+      --ma-slider-thumb-color: rgb(var(--ma-accent));
+    }
+    /* Popups escape the card and cover the screen. */
+    .popup-host .scrim,
+    .popup-host .drawer,
+    .popup-host .toast {
+      position: fixed;
+    }
+    .popup-host .drawer {
+      width: min(520px, 100vw);
     }
     .topbar {
       display: flex;
@@ -462,7 +571,8 @@ window.customCards = window.customCards ?? [];
 window.customCards.push({
   type: "ma-player-card",
   name: "MA Player Card",
-  description: "Fullscreen Music Assistant player for kiosk dashboards",
+  description: "Music Assistant player: fullscreen for kiosk tablets, or a large or compact dashboard card",
+  preview: true,
 });
 
 console.info(`%c MA-PLAYER-CARD %c ${VERSION} `, "background:#78aaff;color:#111;font-weight:700", "");

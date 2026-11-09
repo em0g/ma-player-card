@@ -14,8 +14,27 @@ export interface HomeAssistant {
   hassUrl?(path?: string): string;
 }
 
-export interface CardConfig {
+export type CardLayout = "fullscreen" | "large" | "compact";
+export type CardBackground = "artwork" | "accent" | "theme";
+
+/** Display options for the large and compact layouts (fullscreen ignores them). */
+export interface DisplayOptions {
+  show_artwork: boolean;
+  show_progress: boolean;
+  show_volume: boolean;
+  show_shuffle_repeat: boolean;
+  show_previous: boolean;
+  show_next_up: boolean;
+  show_player: boolean;
+  show_search: boolean;
+  show_recent: boolean;
+  background: CardBackground;
+}
+
+export interface CardConfig extends Partial<DisplayOptions> {
   type: string;
+  /** Default `fullscreen`. */
+  layout?: CardLayout;
   default_player?: string;
   players?: string[];
   hide_unavailable?: boolean;
