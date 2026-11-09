@@ -8,7 +8,8 @@ const env = Object.fromEntries(
   fs.readFileSync(".env.local", "utf8").trim().split("\n").map((l) => l.split(/=(.*)/s).slice(0, 2)),
 );
 const hash = createHash("sha256").update(fs.readFileSync("dist/ma-player-card.js")).digest("hex").slice(0, 10);
-const url = `/hacsfiles/ma-player-card/ma-player-card.js?v=${hash}`;
+// Marketplace path (HA 2026.11+); the old /hacsfiles/ path points to the same folder.
+const url = `/local/community/ma-player-card/ma-player-card.js?v=${hash}`;
 
 const conn = await createConnection({ auth: createLongLivedTokenAuth(env.VITE_HA_URL, env.VITE_HA_TOKEN) });
 const resources = await conn.sendMessagePromise({ type: "lovelace/resources" });
