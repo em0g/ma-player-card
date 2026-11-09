@@ -3464,7 +3464,7 @@ var ti = Object.defineProperty, ei = Object.getOwnPropertyDescriptor, V = (t, e,
     (n = t[r]) && (a = (i ? n(e, s, a) : n(a)) || a);
   return i && a && ti(e, s, a), a;
 };
-const si = "1.0.0", Ie = "ma-player-card.active", Lt = "120, 170, 255";
+const si = "1.0.1", Ie = "ma-player-card.active", Lt = "120, 170, 255";
 let w = class extends k {
   constructor() {
     super(...arguments), this._panel = "none", this._nextItem = null, this._entryId = "", this._accent = Lt, this._toast = null, this._localize = re("sv"), this._players = [], this._queueKey = "", this._entryRequested = !1, this._accentFor = "", this._top = 0, this._measure = () => {

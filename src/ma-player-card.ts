@@ -14,7 +14,7 @@ import "./components/card-player";
 import "./editor";
 import { displayOptions, layoutOf } from "./ha/options";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const STORAGE_KEY = "ma-player-card.active";
 const DEFAULT_ACCENT = "120, 170, 255";
 
